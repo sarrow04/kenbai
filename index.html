@@ -146,14 +146,19 @@
     border-top: 1px dashed #2f3336;
     padding-top: 6px;
   }
-  .del-btn {
+  .card-actions {
     position: absolute;
     top: 10px;
     right: 10px;
+    display: flex;
+    gap: 4px;
+  }
+  .edit-btn, .del-btn {
+    position: static;
     background: transparent;
     border: none;
     color: #71767b;
-    font-size: 16px;
+    font-size: 15px;
     width: auto;
     padding: 2px 8px;
     margin: 0;
@@ -261,6 +266,7 @@
   var STORAGE_KEY = 'xPostTrackerData';
   var posts = [];
   var currentSort = 'date';
+  var editingId = null;
 
   function loadPosts() {
     var raw = localStorage.getItem(STORAGE_KEY);
@@ -357,7 +363,7 @@
     for (var i = 0; i < sorted.length; i++) {
       var p = sorted[i];
       html += '<div class="post" data-id="' + p.id + '">';
-      html += '<button class="del-btn" data-del="' + p.id + '">×</button>';
+      html += '<div class="card-actions"><button class="edit-btn" data-edit="' + p.id + '">✎</button><button class="del-btn" data-del="' + p.id + '">×</button></div>';
       var dateLine = formatDate(p.date);
       if (p.time) dateLine += ' ' + p.time;
       if (p.measureTiming) dateLine += '　計測: ' + (TIMING_LABELS[p.measureTiming] || p.measureTiming);
@@ -384,6 +390,14 @@
         deletePost(id);
       });
     }
+
+    var editBtns = listEl.querySelectorAll('[data-edit]');
+    for (var k = 0; k < editBtns.length; k++) {
+      editBtns[k].addEventListener('click', function(e) {
+        var id = e.target.getAttribute('data-edit');
+        startEdit(id);
+      });
+    }
   }
 
   function deletePost(id) {
@@ -395,6 +409,8 @@
   }
 
   function clearForm() {
+    editingId = null;
+    document.getElementById('saveBtn').textContent = '保存する';
     document.getElementById('inputDate').value = todayStr();
     document.getElementById('inputTime').value = '';
     document.getElementById('inputContent').value = '';
@@ -414,15 +430,35 @@
     'other': 'その他'
   };
 
+  function startEdit(id) {
+    var p = null;
+    for (var i = 0; i < posts.length; i++) {
+      if (String(posts[i].id) === String(id)) { p = posts[i]; break; }
+    }
+    if (!p) return;
+    editingId = id;
+    document.getElementById('inputDate').value = p.date || todayStr();
+    document.getElementById('inputTime').value = p.time || '';
+    document.getElementById('inputMeasureTiming').value = p.measureTiming || '24h';
+    document.getElementById('inputContent').value = p.content || '';
+    document.getElementById('inputImp').value = p.imp || '';
+    document.getElementById('inputLike').value = p.like || '';
+    document.getElementById('inputReply').value = p.reply || '';
+    document.getElementById('inputRepost').value = p.repost || '';
+    document.getElementById('inputBookmark').value = p.bookmark || '';
+    document.getElementById('inputMemo').value = p.memo || '';
+    document.getElementById('saveBtn').textContent = '更新する';
+    document.getElementById('formCard').style.display = 'block';
+    document.getElementById('formCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   function saveNewPost() {
     var content = document.getElementById('inputContent').value.trim();
     if (!content) {
       alert('投稿内容を入力してください');
       return;
     }
-    var newPost = {
-      id: Date.now().toString(),
-      createdAt: Date.now(),
+    var fields = {
       date: document.getElementById('inputDate').value || todayStr(),
       time: document.getElementById('inputTime').value || '',
       measureTiming: document.getElementById('inputMeasureTiming').value,
@@ -434,7 +470,22 @@
       bookmark: numOrZero(document.getElementById('inputBookmark').value),
       memo: document.getElementById('inputMemo').value.trim()
     };
-    posts.push(newPost);
+
+    if (editingId) {
+      for (var i = 0; i < posts.length; i++) {
+        if (String(posts[i].id) === String(editingId)) {
+          fields.id = posts[i].id;
+          fields.createdAt = posts[i].createdAt;
+          posts[i] = fields;
+          break;
+        }
+      }
+    } else {
+      fields.id = Date.now().toString();
+      fields.createdAt = Date.now();
+      posts.push(fields);
+    }
+
     savePosts();
     clearForm();
     document.getElementById('formCard').style.display = 'none';
@@ -496,6 +547,9 @@
     document.getElementById('toggleFormBtn').addEventListener('click', function() {
       var formCard = document.getElementById('formCard');
       var isHidden = formCard.style.display === 'none' || formCard.style.display === '';
+      if (isHidden) {
+        clearForm();
+      }
       formCard.style.display = isHidden ? 'block' : 'none';
     });
 
